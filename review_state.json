@@ -1,0 +1,423 @@
+{
+  "meta": {
+    "project": "ibm-bob-review-coach",
+    "repo": "https://github.com/Pavankumar-p-k/ibm-bob-review-coach",
+    "generated_by": "IBM Bob AI Code Review Coach",
+    "last_updated": "2025-01-01T00:00:00Z",
+    "total_findings": 55,
+    "open": 55,
+    "in_progress": 0,
+    "resolved": 0
+  },
+  "nodes": [
+    {
+      "id": "root",
+      "label": "ibm-bob-review-coach",
+      "type": "root",
+      "status": "flagged",
+      "details": "Sample Flask/Python application reviewed by IBM Bob AI Code Review Coach. 55 total findings across 4 dimensions.",
+      "fix": "Work through findings by priority: Critical first, then High, Medium, Low."
+    },
+    {
+      "id": "branch_security",
+      "label": "Security\n16 findings",
+      "type": "branch",
+      "status": "flagged",
+      "details": "16 security vulnerabilities found: 3 Critical, 7 High, 4 Medium, 2 Low. Scanned by IBM Bob security subagent.",
+      "fix": "Start with SEC-001 (pickle.loads) and SEC-002 (command injection) — both are Critical RCE risks."
+    },
+    {
+      "id": "branch_quality",
+      "label": "Code Quality\n15 findings",
+      "type": "branch",
+      "status": "flagged",
+      "details": "15 code quality issues: 4 High, 7 Medium, 4 Low. Includes duplicated logic, high complexity, and missing error handling.",
+      "fix": "Merge duplicated functions (QUA-001, QUA-002) first — they have the highest maintenance cost."
+    },
+    {
+      "id": "branch_tests",
+      "label": "Test Coverage\n23 untested functions",
+      "type": "branch",
+      "status": "in_progress",
+      "details": "23 public functions had zero test coverage. IBM Bob test subagent generated 31 pytest tests (all pass). Flask routes still need integration tests.",
+      "fix": "31 unit tests generated in sample_app/tests/test_services.py. Add Flask route integration tests next."
+    },
+    {
+      "id": "branch_docs",
+      "label": "Documentation\n24 missing docstrings",
+      "type": "branch",
+      "status": "in_progress",
+      "details": "24 of 24 public functions were missing docstrings. IBM Bob docs subagent generated Google-style docstrings in *_documented.py files.",
+      "fix": "Apply docstrings from *_documented.py files back to the originals and remove the companion files."
+    },
+    {
+      "id": "SEC-001",
+      "label": "SEC-001\nUnsafe Deserialization",
+      "type": "finding",
+      "severity": "critical",
+      "status": "flagged",
+      "file": "src/user_service.py:41",
+      "details": "pickle.loads(data_bytes) deserializes arbitrary bytes with no validation. An attacker can craft a malicious pickle payload that executes arbitrary OS commands during deserialization.",
+      "fix": "Replace pickle entirely. Use json for user preferences. If binary serialization is unavoidable, use HMAC-signed payloads and validate the schema before loading."
+    },
+    {
+      "id": "SEC-002",
+      "label": "SEC-002\nCommand Injection",
+      "type": "finding",
+      "severity": "critical",
+      "status": "flagged",
+      "file": "src/user_service.py:37",
+      "details": "subprocess.call(\"python reports/\" + report_name, shell=True) passes user input directly to a shell. Injecting ; or && executes arbitrary host commands.",
+      "fix": "Use subprocess.run([\"python\", f\"reports/{report_name}\"], shell=False) and whitelist valid report filenames before use."
+    },
+    {
+      "id": "SEC-003",
+      "label": "SEC-003\nInfo Disclosure /debug",
+      "type": "finding",
+      "severity": "critical",
+      "status": "flagged",
+      "file": "src/api.py:50-57",
+      "details": "The unauthenticated /debug GET endpoint returns the database password, API key, and JWT secret in plaintext JSON to any network-accessible client.",
+      "fix": "Remove the /debug endpoint entirely. Health checks should return only {\"status\": \"ok\"} behind authentication."
+    },
+    {
+      "id": "SEC-004",
+      "label": "SEC-004\nSQL Injection (get_user)",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py:20",
+      "details": "Username is concatenated directly into a SQL string. Classic ' OR '1'='1 bypass is possible.",
+      "fix": "cursor.execute(\"SELECT * FROM users WHERE username = ?\", (username,))"
+    },
+    {
+      "id": "SEC-005",
+      "label": "SEC-005\nSQL Injection (create_user)",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py:48-51",
+      "details": "Python %-formatting builds the INSERT statement from user-supplied values, exploitable by injection through username or email.",
+      "fix": "cursor.execute(\"INSERT INTO users (username, password, email) VALUES (?, ?, ?)\", (username, hashed, email))"
+    },
+    {
+      "id": "SEC-006",
+      "label": "SEC-006\nSQL Injection (update_email)",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py:59-60",
+      "details": "new_email is concatenated into the UPDATE string; user_id cast provides no SQL safety.",
+      "fix": "cursor.execute(\"UPDATE users SET email = ? WHERE id = ?\", (new_email, user_id))"
+    },
+    {
+      "id": "SEC-007",
+      "label": "SEC-007\nHardcoded Secrets",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py:9-10",
+      "details": "DB_PASSWORD and API_KEY are committed in plaintext. Any repository reader obtains production credentials.",
+      "fix": "Load from environment variables: os.environ[\"DB_PASSWORD\"], os.environ[\"API_KEY\"]."
+    },
+    {
+      "id": "SEC-008",
+      "label": "SEC-008\nHardcoded JWT Secret",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/api.py:9",
+      "details": "JWT_SECRET is hardcoded; a leaked key allows forging authentication tokens for any user.",
+      "fix": "JWT_SECRET = os.environ[\"JWT_SECRET\"] with a >=256-bit random value."
+    },
+    {
+      "id": "SEC-009",
+      "label": "SEC-009\nBroken Auth (static token)",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/api.py:17",
+      "details": "Every successful login returns \"token\": \"static-token-123\". This static string makes session management illusory.",
+      "fix": "Issue a properly signed, time-limited JWT containing the authenticated user's identity."
+    },
+    {
+      "id": "SEC-010",
+      "label": "SEC-010\nPassword Hash Exposed",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/api.py:20-27",
+      "details": "The /user/<username> endpoint requires no authentication and returns password_hash in the response body.",
+      "fix": "Require a valid session. Never include credential fields in API responses."
+    },
+    {
+      "id": "SEC-011",
+      "label": "SEC-011\nWeak Crypto (MD5)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/user_service.py:30,46",
+      "details": "Unsalted MD5 is used for password hashing. MD5 is cryptographically broken and trivially reversible with rainbow tables.",
+      "fix": "Replace with bcrypt, argon2-cffi, or hashlib.scrypt with a per-user random salt."
+    },
+    {
+      "id": "SEC-012",
+      "label": "SEC-012\nNo Order Ownership Check",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/api.py:43-48",
+      "details": "Any caller can cancel any order by supplying an arbitrary order_id. No ownership or role check.",
+      "fix": "Verify the authenticated user owns the order. Return HTTP 403 if not."
+    },
+    {
+      "id": "SEC-013",
+      "label": "SEC-013\nUnauth Order Placement",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/api.py:36-41",
+      "details": "The /order POST endpoint has no authentication guard — unauthenticated clients can place orders.",
+      "fix": "Add @login_required or equivalent middleware to the route."
+    },
+    {
+      "id": "SEC-014",
+      "label": "SEC-014\nFlask debug=True",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/api.py:61",
+      "details": "app.run(debug=True, host=\"0.0.0.0\") exposes Werkzeug interactive debugger with a remote Python shell.",
+      "fix": "Set debug=False. Serve with Gunicorn/uWSGI. Control via FLASK_DEBUG env var."
+    },
+    {
+      "id": "SEC-015",
+      "label": "SEC-015\nNo Input Validation (user)",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/api.py:29-34",
+      "details": "No length or format checks on user creation fields. Oversized inputs may cause unexpected DB behavior.",
+      "fix": "Enforce max-length constraints. Return HTTP 400 on violations."
+    },
+    {
+      "id": "SEC-016",
+      "label": "SEC-016\nNo Input Validation (order)",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/order_service.py:7-11",
+      "details": "Negative or non-numeric qty/price produce invalid totals or unhandled exceptions.",
+      "fix": "Validate positive numeric types before processing. Return HTTP 422 on invalid input."
+    },
+    {
+      "id": "QUA-001",
+      "label": "QUA-001\nDuplicate Score Logic",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py:80-118",
+      "details": "calculate_admin_score is a verbatim copy of calculate_user_score. Any change must be applied twice — divergence is inevitable.",
+      "fix": "Delete calculate_admin_score. Use calculate_user_score everywhere, or add a role parameter."
+    },
+    {
+      "id": "QUA-002",
+      "label": "QUA-002\nDuplicate Order Logic",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/order_service.py:7-49",
+      "details": "process_bulk_order duplicates the entire body of process_order. Only the status field differs.",
+      "fix": "Extract _calculate_order(order_data, status) helper. Both public functions become one-liners."
+    },
+    {
+      "id": "QUA-003",
+      "label": "QUA-003\nHigh Complexity",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py:80-98",
+      "details": "calculate_user_score has 4 levels of nesting and cyclomatic complexity ~8. Repeated if-bonus pattern in each tier.",
+      "fix": "Use a lookup table [(threshold, rate, bonus_rate)] and apply bonus in a single post-step."
+    },
+    {
+      "id": "QUA-004",
+      "label": "QUA-004\nSRP Violation (create_user)",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py:43-53",
+      "details": "create_user mixes password hashing, SQL construction, and DB I/O. Hashing step is untestable without a live DB.",
+      "fix": "Extract hash_password(password) helper. Manage connections via context manager."
+    },
+    {
+      "id": "QUA-005",
+      "label": "QUA-005\nSRP Violation (debug route)",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/api.py:50-57",
+      "details": "/debug endpoint hard-codes the same credential strings from user_service.py, creating a second source-of-truth and unauthenticated secret exposure.",
+      "fix": "Remove /debug entirely for production. If needed, gate behind app.debug and return only non-sensitive info."
+    },
+    {
+      "id": "QUA-006",
+      "label": "QUA-006\nMagic Numbers (discounts)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/order_service.py:60-68",
+      "details": "Multipliers 0.90, 0.80, 0.50 appear inline with no named constant. Intent is unclear to future maintainers.",
+      "fix": "DISCOUNT_RATES = {\"SAVE10\": 0.10, \"SAVE20\": 0.20, \"HALFOFF\": 0.50}. Apply as 1 - rate."
+    },
+    {
+      "id": "QUA-007",
+      "label": "QUA-007\nMagic Numbers (thresholds)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/order_service.py:14-17",
+      "details": "Quantity thresholds 100, 50 and multipliers 0.9, 0.95 appear as bare literals in two duplicated code blocks.",
+      "fix": "Define BULK_TIER_LARGE, BULK_TIER_MEDIUM, DISCOUNT_LARGE, DISCOUNT_MEDIUM constants."
+    },
+    {
+      "id": "QUA-008",
+      "label": "QUA-008\nDead Code (stub)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/order_service.py:56-58",
+      "details": "get_order_history contains only pass — silently returns None. Callers expecting a list get a silent TypeError.",
+      "fix": "raise NotImplementedError(\"get_order_history is not yet implemented\")."
+    },
+    {
+      "id": "QUA-009",
+      "label": "QUA-009\nBare Dict Access (orders)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/order_service.py:9-11",
+      "details": "Both order functions access dict keys without guard. A missing key raises an unhandled KeyError.",
+      "fix": "Use order_data.get(key) with explicit checks, or validate with pydantic/marshmallow at the API boundary."
+    },
+    {
+      "id": "QUA-010",
+      "label": "QUA-010\nBare Dict Access (API)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/api.py:31-34",
+      "details": "Incomplete JSON body raises unhandled KeyError in create_user_api with no HTTP 400 path.",
+      "fix": "Use .get() with null checks. Return HTTP 400 on missing required fields."
+    },
+    {
+      "id": "QUA-011",
+      "label": "QUA-011\nInconsistent Naming",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/user_service.py:16,55,65",
+      "details": "Some functions use username (string), others use user_id (int). No consistent primary-key convention.",
+      "fix": "Resolve username→id at the API boundary. Use user_id consistently in internal service calls."
+    },
+    {
+      "id": "QUA-012",
+      "label": "QUA-012\nDB Connection Leaks",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/user_service.py:12-78",
+      "details": "conn.close() only runs on the happy path. Exceptions cause connection leaks throughout all DB functions.",
+      "fix": "Use with contextlib.closing(get_db_connection()) as conn: throughout."
+    },
+    {
+      "id": "QUA-013",
+      "label": "QUA-013\nHardcoded Port",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/api.py:61",
+      "details": "Port 5000 is a bare literal. Changing it requires a source edit.",
+      "fix": "port = int(os.environ.get(\"PORT\", 5000))"
+    },
+    {
+      "id": "QUA-014",
+      "label": "QUA-014\nUnused Import",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/user_service.py:4",
+      "details": "import os is present but os is never referenced. Misleads readers into thinking env vars are used.",
+      "fix": "Remove the import os line."
+    },
+    {
+      "id": "QUA-015",
+      "label": "QUA-015\nInconsistent Return Style",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/user_service.py:26-33",
+      "details": "authenticate_user returns bool but get_user returns a raw DB row tuple. Callers rely on tuple truthiness inconsistently.",
+      "fix": "Define a User dataclass. Return it or None from all user-fetching functions. Add type annotations."
+    },
+    {
+      "id": "TST-001",
+      "label": "TST-001\n31 Tests Generated",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "sample_app/tests/test_services.py",
+      "details": "23 public functions had zero test coverage before this review. IBM Bob test subagent generated 31 pytest tests (all pass) using mocked SQLite. Flask routes still lack integration tests.",
+      "fix": "Run: cd sample_app && python -m pytest tests/ --cov=src. Add Flask route integration tests using app.test_client()."
+    },
+    {
+      "id": "DOC-001",
+      "label": "DOC-001\n24 Docstrings Generated",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "sample_app/src/*_documented.py",
+      "details": "24 of 24 public functions were missing docstrings. IBM Bob docs subagent generated Google-style docstrings in *_documented.py companion files.",
+      "fix": "Apply docstrings from *_documented.py back to the originals and delete the companion files."
+    }
+  ],
+  "edges": [
+    { "from": "root", "to": "branch_security" },
+    { "from": "root", "to": "branch_quality" },
+    { "from": "root", "to": "branch_tests" },
+    { "from": "root", "to": "branch_docs" },
+    { "from": "branch_security", "to": "SEC-001" },
+    { "from": "branch_security", "to": "SEC-002" },
+    { "from": "branch_security", "to": "SEC-003" },
+    { "from": "branch_security", "to": "SEC-004" },
+    { "from": "branch_security", "to": "SEC-005" },
+    { "from": "branch_security", "to": "SEC-006" },
+    { "from": "branch_security", "to": "SEC-007" },
+    { "from": "branch_security", "to": "SEC-008" },
+    { "from": "branch_security", "to": "SEC-009" },
+    { "from": "branch_security", "to": "SEC-010" },
+    { "from": "branch_security", "to": "SEC-011" },
+    { "from": "branch_security", "to": "SEC-012" },
+    { "from": "branch_security", "to": "SEC-013" },
+    { "from": "branch_security", "to": "SEC-014" },
+    { "from": "branch_security", "to": "SEC-015" },
+    { "from": "branch_security", "to": "SEC-016" },
+    { "from": "branch_quality", "to": "QUA-001" },
+    { "from": "branch_quality", "to": "QUA-002" },
+    { "from": "branch_quality", "to": "QUA-003" },
+    { "from": "branch_quality", "to": "QUA-004" },
+    { "from": "branch_quality", "to": "QUA-005" },
+    { "from": "branch_quality", "to": "QUA-006" },
+    { "from": "branch_quality", "to": "QUA-007" },
+    { "from": "branch_quality", "to": "QUA-008" },
+    { "from": "branch_quality", "to": "QUA-009" },
+    { "from": "branch_quality", "to": "QUA-010" },
+    { "from": "branch_quality", "to": "QUA-011" },
+    { "from": "branch_quality", "to": "QUA-012" },
+    { "from": "branch_quality", "to": "QUA-013" },
+    { "from": "branch_quality", "to": "QUA-014" },
+    { "from": "branch_quality", "to": "QUA-015" },
+    { "from": "branch_tests", "to": "TST-001" },
+    { "from": "branch_docs", "to": "DOC-001" }
+  ]
+}
