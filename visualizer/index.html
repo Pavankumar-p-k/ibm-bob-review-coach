@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IBM Bob AI Code Review Coach — Live Graph</title>
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    background: #0f1117;
+    color: #e2e8f0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Header ── */
+  header {
+    background: #1a1d2e;
+    border-bottom: 1px solid #2d3148;
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    gap: 12px;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    background: #3b82f6;
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  header h1 { font-size: 15px; font-weight: 600; color: #f1f5f9; }
+  .header-meta { font-size: 12px; color: #64748b; }
+
+  /* ── Stats bar ── */
+  .stats {
+    display: flex;
+    gap: 16px;
+    background: #1a1d2e;
+    border-bottom: 1px solid #2d3148;
+    padding: 8px 20px;
+    flex-shrink: 0;
+  }
+  .stat { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .stat-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .dot-critical { background: #ef4444; }
+  .dot-high     { background: #f97316; }
+  .dot-medium   { background: #eab308; }
+  .dot-low      { background: #22c55e; }
+  .dot-flagged  { background: #ef4444; }
+  .dot-progress { background: #f59e0b; }
+  .dot-resolved { background: #22c55e; }
+  .stat-val { font-weight: 700; color: #f1f5f9; }
+
+  /* ── Main layout ── */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Graph canvas ── */
+  #graph {
+    flex: 1;
+    background: #0f1117;
+    cursor: grab;
+  }
+  #graph:active { cursor: grabbing; }
+
+  /* ── Sidebar / detail panel ── */
+  .sidebar {
+    width: 340px;
+    background: #1a1d2e;
+    border-left: 1px solid #2d3148;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  .sidebar-header {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid #2d3148;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #64748b;
+  }
+  .sidebar-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+  }
+  .sidebar-body::-webkit-scrollbar { width: 6px; }
+  .sidebar-body::-webkit-scrollbar-track { background: transparent; }
+  .sidebar-body::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+
+  .empty-state {
+    color: #475569;
+    font-size: 13px;
+    text-align: center;
+    padding-top: 40px;
+    line-height: 1.7;
+  }
+  .empty-state svg { display: block; margin: 0 auto 12px; opacity: 0.3; }
+
+  /* ── Node detail card ── */
+  .node-id {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .node-title { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 10px; line-height: 1.35; }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 12px;
+    margin-right: 6px;
+    margin-bottom: 12px;
+  }
+  .badge-critical { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .badge-high     { background: rgba(249,115,22,0.15); color: #f97316; }
+  .badge-medium   { background: rgba(234,179,8,0.15);  color: #eab308; }
+  .badge-low      { background: rgba(34,197,94,0.15);  color: #22c55e; }
+  .badge-flagged  { background: rgba(239,68,68,0.15); color: #ef4444; }
+  .badge-in_progress { background: rgba(245,158,11,0.15); color: #f59e0b; }
+  .badge-resolved { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .badge-root     { background: rgba(59,130,246,0.15); color: #3b82f6; }
+  .badge-branch   { background: rgba(139,92,246,0.15); color: #8b5cf6; }
+
+  .detail-section { margin-bottom: 14px; }
+  .detail-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: #64748b;
+    margin-bottom: 5px;
+  }
+  .detail-text {
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.6;
+  }
+  .detail-file {
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 12px;
+    color: #7dd3fc;
+    background: #0f172a;
+    padding: 4px 8px;
+    border-radius: 4px;
+    word-break: break-all;
+  }
+  .fix-text {
+    font-size: 13px;
+    color: #86efac;
+    line-height: 1.6;
+    background: rgba(34,197,94,0.06);
+    border-left: 3px solid #22c55e;
+    padding: 8px 10px;
+    border-radius: 0 4px 4px 0;
+  }
+
+  /* Status toggle buttons */
+  .status-buttons { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+  .status-btn {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .status-btn:hover { opacity: 0.8; }
+  .status-btn.active { border-color: currentColor; }
+  .btn-flagged    { background: rgba(239,68,68,0.12);  color: #ef4444; }
+  .btn-in_progress{ background: rgba(245,158,11,0.12); color: #f59e0b; }
+  .btn-resolved   { background: rgba(34,197,94,0.12);  color: #22c55e; }
+
+  /* ── Legend ── */
+  .legend {
+    border-top: 1px solid #2d3148;
+    padding: 12px 16px;
+    flex-shrink: 0;
+  }
+  .legend-title {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    color: #64748b;
+    margin-bottom: 8px;
+  }
+  .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+  .legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    display: flex;
+    gap: 6px;
+    z-index: 10;
+  }
+  .tool-btn {
+    background: #1a1d2e;
+    border: 1px solid #2d3148;
+    color: #94a3b8;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tool-btn:hover { background: #2d3148; color: #f1f5f9; }
+
+  /* ── Loading overlay ── */
+  #loading {
+    position: absolute;
+    inset: 0;
+    background: #0f1117;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 100;
+    font-size: 14px;
+    color: #64748b;
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid #2d3148;
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <span class="logo">IBM Bob</span>
+    <h1>AI Code Review Coach — Live Graph</h1>
+  </div>
+  <span class="header-meta" id="meta-line">Loading review_state.json…</span>
+</header>
+
+<div class="stats" id="stats-bar">
+  <div class="stat"><span class="stat-dot dot-critical"></span><span id="cnt-critical" class="stat-val">—</span> Critical</div>
+  <div class="stat"><span class="stat-dot dot-high"></span><span id="cnt-high" class="stat-val">—</span> High</div>
+  <div class="stat"><span class="stat-dot dot-medium"></span><span id="cnt-medium" class="stat-val">—</span> Medium</div>
+  <div class="stat"><span class="stat-dot dot-low"></span><span id="cnt-low" class="stat-val">—</span> Low</div>
+  <div class="stat" style="margin-left:auto"><span class="stat-dot dot-flagged"></span><span id="cnt-flagged" class="stat-val">—</span> Flagged</div>
+  <div class="stat"><span class="stat-dot dot-progress"></span><span id="cnt-inprog" class="stat-val">—</span> In Progress</div>
+  <div class="stat"><span class="stat-dot dot-resolved"></span><span id="cnt-resolved" class="stat-val">—</span> Resolved</div>
+</div>
+
+<div class="main" style="position:relative">
+  <div id="loading">
+    <div class="spinner"></div>
+    <span>Loading graph…</span>
+  </div>
+
+  <div id="graph"></div>
+
+  <div class="toolbar">
+    <button class="tool-btn" onclick="network && network.fit()">⊞ Fit</button>
+    <button class="tool-btn" onclick="network && network.setOptions({physics:{enabled:true}}); setTimeout(()=>network.setOptions({physics:{enabled:false}}),2000)">⟳ Relayout</button>
+    <button class="tool-btn" onclick="saveState()">💾 Save Status</button>
+  </div>
+
+  <div class="sidebar">
+    <div class="sidebar-header">Node Details</div>
+    <div class="sidebar-body" id="detail-panel">
+      <div class="empty-state">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        Click any node to see its details, current status, and suggested fix.
+      </div>
+    </div>
+    <div class="legend">
+      <div class="legend-title">Legend</div>
+      <div class="legend-grid">
+        <div class="legend-item"><span class="legend-swatch" style="background:#ef4444"></span>Critical / Flagged</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#f97316"></span>High</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#eab308"></span>Medium</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#22c55e"></span>Low / Resolved</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#f59e0b"></span>In Progress</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#3b82f6; border-radius:50%"></span>Root</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#8b5cf6; border-radius:4px; border:2px solid #a78bfa"></span>Branch</div>
+        <div class="legend-item"><span class="legend-swatch" style="background:#1e293b; border:2px solid #475569; border-radius:3px"></span>Finding</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Color helpers
+// ---------------------------------------------------------------------------
+const SEVERITY_COLORS = {
+  critical: { bg: '#ef4444', border: '#b91c1c', font: '#fff' },
+  high:     { bg: '#f97316', border: '#c2410c', font: '#fff' },
+  medium:   { bg: '#eab308', border: '#a16207', font: '#1f2937' },
+  low:      { bg: '#22c55e', border: '#15803d', font: '#fff' },
+};
+const STATUS_COLORS = {
+  flagged:     { bg: '#ef4444', border: '#b91c1c' },
+  in_progress: { bg: '#f59e0b', border: '#b45309' },
+  resolved:    { bg: '#22c55e', border: '#15803d' },
+};
+const TYPE_SHAPES = {
+  root:    'circle',
+  branch:  'box',
+  finding: 'box',
+};
+
+function nodeVisProps(n) {
+  if (n.type === 'root') {
+    const sc = STATUS_COLORS[n.status] || STATUS_COLORS.flagged;
+    return {
+      shape: 'circle',
+      color: { background: '#3b82f6', border: '#1d4ed8', highlight: { background:'#60a5fa', border:'#1d4ed8' } },
+      font: { color: '#fff', size: 13, bold: true, multi: true },
+      size: 36,
+      borderWidth: 3,
+    };
+  }
+  if (n.type === 'branch') {
+    const sc = STATUS_COLORS[n.status] || STATUS_COLORS.flagged;
+    return {
+      shape: 'box',
+      color: {
+        background: '#1e1b4b',
+        border: '#8b5cf6',
+        highlight: { background: '#2e1b6e', border: '#a78bfa' }
+      },
+      font: { color: '#c4b5fd', size: 12, bold: true, multi: true },
+      borderWidth: 2,
+      borderDashes: false,
+      widthConstraint: { maximum: 140 },
+    };
+  }
+  // finding node — color by severity, override border by status
+  const sev = SEVERITY_COLORS[n.severity] || SEVERITY_COLORS.medium;
+  const sc  = STATUS_COLORS[n.status] || {};
+  return {
+    shape: 'box',
+    color: {
+      background: n.status === 'resolved' ? '#14532d' : n.status === 'in_progress' ? '#451a03' : '#1e293b',
+      border: sc.border || sev.border,
+      highlight: {
+        background: n.status === 'resolved' ? '#166534' : n.status === 'in_progress' ? '#78350f' : '#334155',
+        border: sc.border || sev.border,
+      }
+    },
+    font: { color: sev.bg, size: 11, multi: true },
+    borderWidth: 2,
+    widthConstraint: { maximum: 130 },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// State management (in-memory, saveable to localStorage)
+// ---------------------------------------------------------------------------
+let stateData = null;
+let network = null;
+let nodesDS = null;
+let edgesDS = null;
+
+const LS_KEY = 'ibm-bob-review-status';
+
+function loadSavedStatuses() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '{}'); } catch { return {}; }
+}
+function saveState() {
+  if (!stateData) return;
+  const statuses = {};
+  stateData.nodes.forEach(n => { statuses[n.id] = n.status; });
+  localStorage.setItem(LS_KEY, JSON.stringify(statuses));
+  const btn = document.querySelector('[onclick="saveState()"]');
+  if (btn) { btn.textContent = '✓ Saved'; setTimeout(() => btn.textContent = '💾 Save Status', 1500); }
+}
+
+// ---------------------------------------------------------------------------
+// Stats bar update
+// ---------------------------------------------------------------------------
+function updateStats() {
+  if (!stateData) return;
+  const findings = stateData.nodes.filter(n => n.type === 'finding');
+  document.getElementById('cnt-critical').textContent = findings.filter(n => n.severity === 'critical').length;
+  document.getElementById('cnt-high').textContent     = findings.filter(n => n.severity === 'high').length;
+  document.getElementById('cnt-medium').textContent   = findings.filter(n => n.severity === 'medium').length;
+  document.getElementById('cnt-low').textContent      = findings.filter(n => n.severity === 'low').length;
+  document.getElementById('cnt-flagged').textContent  = stateData.nodes.filter(n => n.status === 'flagged').length;
+  document.getElementById('cnt-inprog').textContent   = stateData.nodes.filter(n => n.status === 'in_progress').length;
+  document.getElementById('cnt-resolved').textContent = stateData.nodes.filter(n => n.status === 'resolved').length;
+
+  const m = stateData.meta;
+  document.getElementById('meta-line').textContent =
+    `${m.total_findings} findings · updated ${(m.last_updated || '').replace('T',' ').replace('Z',' UTC')}`;
+}
+
+// ---------------------------------------------------------------------------
+// Detail panel
+// ---------------------------------------------------------------------------
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderDetail(node) {
+  const sev = node.severity || node.type;
+  const sevBadge = node.severity
+    ? `<span class="badge badge-${node.severity}">${node.severity.toUpperCase()}</span>`
+    : '';
+  const statusBadge = `<span class="badge badge-${node.status}">${node.status.replace('_',' ')}</span>`;
+  const typeBadge   = `<span class="badge badge-${node.type}">${node.type}</span>`;
+
+  const fileSection = node.file
+    ? `<div class="detail-section">
+         <div class="detail-label">File / Location</div>
+         <div class="detail-file">${escHtml(node.file)}</div>
+       </div>`
+    : '';
+
+  const fixSection = node.fix
+    ? `<div class="detail-section">
+         <div class="detail-label">Suggested Fix</div>
+         <div class="fix-text">${escHtml(node.fix)}</div>
+       </div>`
+    : '';
+
+  const title = (node.label || node.id).replace(/\n/g, ' — ');
+
+  const statusBtns = `
+    <div class="detail-section">
+      <div class="detail-label">Change Status</div>
+      <div class="status-buttons">
+        <button class="status-btn btn-flagged ${node.status==='flagged'?'active':''}"
+                onclick="setStatus('${node.id}','flagged')">🔴 Flagged</button>
+        <button class="status-btn btn-in_progress ${node.status==='in_progress'?'active':''}"
+                onclick="setStatus('${node.id}','in_progress')">🟡 In Progress</button>
+        <button class="status-btn btn-resolved ${node.status==='resolved'?'active':''}"
+                onclick="setStatus('${node.id}','resolved')">🟢 Resolved</button>
+      </div>
+    </div>`;
+
+  document.getElementById('detail-panel').innerHTML = `
+    <div class="node-id">${escHtml(node.id)}</div>
+    <div class="node-title">${escHtml(title)}</div>
+    ${typeBadge}${sevBadge}${statusBadge}
+    ${fileSection}
+    <div class="detail-section">
+      <div class="detail-label">Issue</div>
+      <div class="detail-text">${escHtml(node.details || 'No details available.')}</div>
+    </div>
+    ${fixSection}
+    ${statusBtns}
+  `;
+}
+
+// ---------------------------------------------------------------------------
+// Status change — update node in graph + state
+// ---------------------------------------------------------------------------
+function setStatus(nodeId, newStatus) {
+  const node = stateData.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  node.status = newStatus;
+  // Update vis-network node appearance
+  const props = nodeVisProps(node);
+  nodesDS.update({ id: nodeId, ...props });
+  // Re-render detail panel
+  renderDetail(node);
+  // Recount stats
+  updateStats();
+}
+
+// ---------------------------------------------------------------------------
+// Graph build
+// ---------------------------------------------------------------------------
+function buildGraph(data) {
+  stateData = data;
+  const savedStatuses = loadSavedStatuses();
+
+  // Apply saved statuses
+  stateData.nodes.forEach(n => {
+    if (savedStatuses[n.id]) n.status = savedStatuses[n.id];
+  });
+
+  // Build vis-network datasets
+  const visNodes = stateData.nodes.map(n => ({
+    id: n.id,
+    label: n.label || n.id,
+    ...nodeVisProps(n),
+  }));
+
+  const visEdges = stateData.edges.map((e, i) => ({
+    id: `e${i}`,
+    from: e.from,
+    to: e.to,
+    arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+    color: { color: '#2d3148', highlight: '#8b5cf6', opacity: 0.8 },
+    smooth: { type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.4 },
+    width: 1.5,
+  }));
+
+  nodesDS = new vis.DataSet(visNodes);
+  edgesDS = new vis.DataSet(visEdges);
+
+  const container = document.getElementById('graph');
+  const networkData = { nodes: nodesDS, edges: edgesDS };
+
+  const options = {
+    layout: {
+      hierarchical: {
+        enabled: true,
+        direction: 'UD',
+        sortMethod: 'directed',
+        levelSeparation: 120,
+        nodeSpacing: 160,
+        treeSpacing: 200,
+        blockShifting: true,
+        edgeMinimization: true,
+        parentCentralization: true,
+      }
+    },
+    physics: { enabled: false },
+    interaction: {
+      dragNodes: true,
+      dragView: true,
+      zoomView: true,
+      hover: true,
+      tooltipDelay: 200,
+    },
+    nodes: {
+      shadow: { enabled: true, color: 'rgba(0,0,0,0.4)', size: 8, x: 2, y: 2 },
+      margin: { top: 8, right: 10, bottom: 8, left: 10 },
+    },
+    edges: {
+      shadow: false,
+    },
+  };
+
+  network = new vis.Network(container, networkData, options);
+
+  network.on('click', function(params) {
+    if (params.nodes.length > 0) {
+      const nodeId = params.nodes[0];
+      const node = stateData.nodes.find(n => n.id === nodeId);
+      if (node) renderDetail(node);
+    }
+  });
+
+  network.on('stabilized', function() {
+    network.fit({ animation: { duration: 600, easingFunction: 'easeInOutQuad' } });
+  });
+
+  // Hide loading overlay
+  document.getElementById('loading').style.display = 'none';
+  updateStats();
+}
+
+// ---------------------------------------------------------------------------
+// Load review_state.json (relative path works when opened via local server;
+// for direct file:// open, falls back to embedded stub notice)
+// ---------------------------------------------------------------------------
+async function loadState() {
+  // Try fetching ../review_state.json (relative to visualizer/)
+  const candidates = [
+    '../review_state.json',
+    'review_state.json',
+    './review_state.json',
+  ];
+
+  for (const url of candidates) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      buildGraph(data);
+      return;
+    } catch (_) {
+      // try next
+    }
+  }
+
+  // Fallback: show a helpful error
+  document.getElementById('loading').innerHTML = `
+    <div style="text-align:center; max-width:420px; padding:0 20px">
+      <div style="font-size:28px;margin-bottom:12px">📂</div>
+      <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:8px">Could not load review_state.json</div>
+      <div style="font-size:13px;color:#64748b;line-height:1.7">
+        Open this file via a local server so fetch() can read the JSON:<br><br>
+        <code style="background:#1e293b;padding:6px 12px;border-radius:4px;font-size:12px;color:#7dd3fc">
+          cd ibm-bob-review-coach &amp;&amp; python -m http.server 8080
+        </code><br><br>
+        Then visit <a href="http://localhost:8080/visualizer/" style="color:#3b82f6">http://localhost:8080/visualizer/</a>
+      </div>
+    </div>`;
+}
+
+loadState();
+</script>
+</body>
+</html>
