@@ -289,6 +289,10 @@
     <button class="tool-btn" onclick="network && network.fit()">⊞ Fit</button>
     <button class="tool-btn" onclick="network && network.setOptions({physics:{enabled:true}}); setTimeout(()=>network.setOptions({physics:{enabled:false}}),2000)">⟳ Relayout</button>
     <button class="tool-btn" onclick="saveState()">💾 Save Status</button>
+    <label class="tool-btn" style="cursor:pointer" title="Load an updated review_state.json file">
+      📂 Load JSON
+      <input type="file" id="json-picker" accept=".json" style="display:none" onchange="loadFromFile(this)">
+    </label>
   </div>
 
   <div class="sidebar">
@@ -403,6 +407,30 @@ function saveState() {
   localStorage.setItem(LS_KEY, JSON.stringify(statuses));
   const btn = document.querySelector('[onclick="saveState()"]');
   if (btn) { btn.textContent = '✓ Saved'; setTimeout(() => btn.textContent = '💾 Save Status', 1500); }
+}
+
+// ---------------------------------------------------------------------------
+// File picker — load an updated review_state.json directly in the browser
+// ---------------------------------------------------------------------------
+function loadFromFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      // Destroy existing network
+      if (network) { network.destroy(); network = null; }
+      document.getElementById('loading').style.display = 'flex';
+      document.getElementById('loading').innerHTML = '<div class="spinner"></div><span>Rebuilding graph…</span>';
+      setTimeout(() => buildGraph(data), 50);
+    } catch(err) {
+      alert('Could not parse JSON: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  // Reset input so same file can be reloaded
+  input.value = '';
 }
 
 // ---------------------------------------------------------------------------
@@ -587,8 +615,1179 @@ function buildGraph(data) {
 // Load review_state.json (relative path works when opened via local server;
 // for direct file:// open, falls back to embedded stub notice)
 // ---------------------------------------------------------------------------
+const INLINE_STATE = {
+  "meta": {
+    "project": "ibm-bob-review-coach",
+    "repo": "https://github.com/Pavankumar-p-k/ibm-bob-review-coach",
+    "generated_by": "IBM Bob AI Code Review Coach — update_state.py",
+    "last_updated": "2026-09-26T19:18:38Z",
+    "total_findings": 78,
+    "open": 31,
+    "in_progress": 47,
+    "resolved": 0
+  },
+  "nodes": [
+    {
+      "id": "root",
+      "label": "ibm-bob-review-coach",
+      "type": "root",
+      "status": "in_progress",
+      "details": "Sample Flask/Python application reviewed by IBM Bob AI Code Review Coach. 78 total findings: 31 flagged, 47 in_progress, 0 resolved.",
+      "fix": "Work through findings by priority: Critical first, then High, Medium, Low."
+    },
+    {
+      "id": "branch_security",
+      "label": "Security\n16 findings",
+      "type": "branch",
+      "status": "flagged",
+      "details": "Security vulnerabilities scanned by IBM Bob security subagent.",
+      "fix": "Start with CRITICAL findings, then HIGH, MEDIUM, LOW."
+    },
+    {
+      "id": "branch_quality",
+      "label": "Code Quality\n15 findings",
+      "type": "branch",
+      "status": "flagged",
+      "details": "Code quality issues flagged by IBM Bob quality subagent.",
+      "fix": "Merge duplicated functions first — they have the highest maintenance cost."
+    },
+    {
+      "id": "branch_tests",
+      "label": "Test Coverage\n23 findings",
+      "type": "branch",
+      "status": "in_progress",
+      "details": "Test coverage gaps identified by IBM Bob test subagent.",
+      "fix": "Run: cd sample_app && python -m pytest tests/ --cov=src"
+    },
+    {
+      "id": "branch_docs",
+      "label": "Documentation\n24 findings",
+      "type": "branch",
+      "status": "in_progress",
+      "details": "Documentation gaps identified by IBM Bob docs subagent.",
+      "fix": "Apply generated docstrings from *_documented.py back to the originals."
+    },
+    {
+      "id": "SEC-001",
+      "label": "SEC-001\nUnsafe Deserialization — `…",
+      "type": "finding",
+      "severity": "critical",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`pickle.loads(data_bytes)` deserializes arbitrary bytes with no validation. An attacker who controls the input can craft a malicious pickle payload that executes arbitrary OS commands during deserialization.",
+      "fix": "Replace `pickle` entirely. Use a safe serialization format such as `json` for user preferences. If binary serialization is unavoidable, use a signed/authenticated format (e.g. `hmac`-verified) and validate the schema before deserializing."
+    },
+    {
+      "id": "SEC-002",
+      "label": "SEC-002\nCommand Injection — unsani…",
+      "type": "finding",
+      "severity": "critical",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`subprocess.call(\"python reports/\" + report_name, shell=True)` passes user-supplied input directly to a shell. An attacker can inject shell metacharacters (e.g. `; rm -rf /`) to execute arbitrary commands on the host.",
+      "fix": "Use `subprocess.run([\"python\", f\"reports/{report_name}\"], shell=False)` and strictly validate `report_name` against a whitelist of allowed report filenames before use."
+    },
+    {
+      "id": "SEC-003",
+      "label": "SEC-003\nInformation Disclosure — d…",
+      "type": "finding",
+      "severity": "critical",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "The unauthenticated `/debug` GET endpoint returns the database password, API key, and JWT secret in plaintext JSON. Any network-accessible client can retrieve these credentials without authentication.",
+      "fix": "Remove the `/debug` endpoint entirely. If a health-check endpoint is needed, return only a `{\"status\": \"ok\"}` response with no sensitive data, and protect it with authentication."
+    },
+    {
+      "id": "SEC-004",
+      "label": "SEC-004\nSQL Injection — string con…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`\"SELECT * FROM users WHERE username = '\" + username + \"'\"` concatenates user input directly into an SQL query, allowing a classic SQL injection attack (e.g. `' OR '1'='1`).",
+      "fix": "Use parameterized queries: `cursor.execute(\"SELECT * FROM users WHERE username = ?\", (username,))`."
+    },
+    {
+      "id": "SEC-005",
+      "label": "SEC-005\nSQL Injection — `%`-format…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`\"INSERT INTO users … VALUES ('%s', '%s', '%s')\" % (username, hashed, email)` uses Python string formatting to build the SQL statement, which is exploitable by injection through `username` or `email`.",
+      "fix": "Use parameterized queries: `cursor.execute(\"INSERT INTO users (username, password, email) VALUES (?, ?, ?)\", (username, hashed, email))`."
+    },
+    {
+      "id": "SEC-006",
+      "label": "SEC-006\nSQL Injection — string con…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`\"UPDATE users SET email = '\" + new_email + \"' WHERE id = \" + str(user_id)` is vulnerable to injection via `new_email`; the `user_id` cast also provides no type safety beyond the Python coercion.",
+      "fix": "Use parameterized queries: `cursor.execute(\"UPDATE users SET email = ? WHERE id = ?\", (new_email, user_id))`."
+    },
+    {
+      "id": "SEC-007",
+      "label": "SEC-007\nHardcoded Secrets — DB pas…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`DB_PASSWORD = \"s3cr3tP@ssw0rd123\"` and `API_KEY = \"sk-prod-abc123XYZ789hardcoded\"` are committed to source code. Anyone with repository access obtains production credentials.",
+      "fix": "Remove hardcoded values. Load secrets at runtime from environment variables (`os.environ`) or a secrets manager (e.g. IBM Secrets Manager, HashiCorp Vault)."
+    },
+    {
+      "id": "SEC-008",
+      "label": "SEC-008\nHardcoded Secret — JWT sig…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "`JWT_SECRET = \"my-super-secret-jwt-key-do-not-share\"` is hardcoded in the API module. A leaked JWT secret allows an attacker to forge authentication tokens for any user.",
+      "fix": "Load the JWT secret from an environment variable (`os.environ[\"JWT_SECRET\"]`) and ensure it is a cryptographically random value of at least 256 bits."
+    },
+    {
+      "id": "SEC-009",
+      "label": "SEC-009\nBroken Authentication — st…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "A successful login always returns `\"token\": \"static-token-123\"`. This static string provides no real authentication: any code that checks this token will accept it for every user, making session management completely ineffective.",
+      "fix": "Issue a properly signed, time-limited JWT (or equivalent) containing the authenticated user's identity. Validate the token on every protected request."
+    },
+    {
+      "id": "SEC-010",
+      "label": "SEC-010\nBroken Access Control — un…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "The `/user/<username>` endpoint requires no authentication and returns the user's `password_hash` in the response body. An anonymous attacker can enumerate user records and extract hashes for offline cracking.",
+      "fix": "Require a valid authenticated session to access this endpoint, and never include `password_hash` (or any credential field) in API responses."
+    },
+    {
+      "id": "SEC-011",
+      "label": "SEC-011\nWeak Cryptography — MD5 us…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`hashlib.md5(password.encode()).hexdigest()` is used to store and verify passwords. MD5 is cryptographically broken, extremely fast to brute-force, and has no salt, making it trivially reversible with rainbow tables.",
+      "fix": "Replace with a purpose-built password hashing function: `bcrypt`, `argon2-cffi`, or `hashlib.scrypt` with a per-user random salt and appropriate work factor."
+    },
+    {
+      "id": "SEC-012",
+      "label": "SEC-012\nBroken Access Control — `c…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "Any caller can cancel any order by supplying an arbitrary `order_id`. There is no check that the authenticated user owns the order or has the required role.",
+      "fix": "Verify that the authenticated user's identity matches the owner of the requested order before processing the cancellation; return HTTP 403 if not."
+    },
+    {
+      "id": "SEC-013",
+      "label": "SEC-013\nBroken Access Control — `p…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "The `/order` POST endpoint has no authentication guard, allowing unauthenticated clients to place orders.",
+      "fix": "Add an `@login_required` decorator (or equivalent middleware) to enforce a valid session token before the handler executes."
+    },
+    {
+      "id": "SEC-014",
+      "label": "SEC-014\nFlask debug mode enabled w…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "`app.run(debug=True, host=\"0.0.0.0\")` enables the Werkzeug interactive debugger and exposes a PIN-protected remote Python shell. If the PIN is leaked or brute-forced, an attacker gains full code execution on the server.",
+      "fix": "Set `debug=False` (or control it via the `FLASK_DEBUG` environment variable defaulting to `False`). Use a production WSGI server (e.g. Gunicorn, uWSGI) instead of Flask's built-in development server."
+    },
+    {
+      "id": "SEC-015",
+      "label": "SEC-015\nInformation Disclosure — `…",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "`data[\"username\"]`, `data[\"password\"]`, and `data[\"email\"]` are accessed with no length limits, format checks, or sanitization. Overly long or malformed inputs may cause unexpected behavior or be used in downstream injection attacks.",
+      "fix": "Validate and sanitize all user-supplied fields before use: enforce maximum lengths, reject unexpected characters, and return HTTP 400 with a clear error message on invalid input."
+    },
+    {
+      "id": "SEC-016",
+      "label": "SEC-016\nMissing input validation o…",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/order_service.py",
+      "details": "`qty` and `price` are used in arithmetic with no type or bounds checking. Negative values or non-numeric input could produce negative totals or raise unhandled exceptions that reveal internal stack traces.",
+      "fix": "Validate that `qty` and `price` are positive numbers before processing. Return a structured error response (HTTP 422) for invalid inputs rather than allowing exceptions to propagate."
+    },
+    {
+      "id": "QUA-001",
+      "label": "QUA-001\nDuplicate Logic — `calcula…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`calculate_admin_score` (lines 100–118) is a verbatim copy of `calculate_user_score` (lines 80–98). The two functions share the same signature, the same branching tree, and the same arithmetic — the only difference is the function name. Any future change to the scoring algorithm must be applied twice, making divergence inevitable.",
+      "fix": "Delete `calculate_admin_score` and replace all call sites with `calculate_user_score`. If admin scoring ever needs to differ, introduce a `role` parameter or a small multiplier table instead of duplicating the entire function body."
+    },
+    {
+      "id": "QUA-002",
+      "label": "QUA-002\nDuplicate Logic — `process…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/order_service.py",
+      "details": "`process_bulk_order` (lines 29–49) duplicates the entire body of `process_order` (lines 7–27). The only difference between the two is the `status` field value (`\"pending\"` vs `\"bulk_pending\"`). The discount/tier logic (lines 14–17) is copy-pasted in full.",
+      "fix": "Extract a private helper `_calculate_order(order_data, status)` that takes a `status` argument. Both public functions become one-liners that call the helper with the appropriate status string, eliminating the duplication entirely."
+    },
+    {
+      "id": "QUA-003",
+      "label": "QUA-003\nHigh Complexity — `calcula…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "The function contains four levels of nesting (function body → `if activity_count > 0` → `if/elif/elif/else` tiers → inner `if bonus`). The repeated `if bonus: score = score + (bonus * N)` pattern inside each tier makes the logic hard to follow and test independently.",
+      "fix": "Flatten the tier selection using a lookup table (list of `(threshold, rate_multiplier, bonus_multiplier)` tuples) and apply the bonus in a single post-calculation step, reducing cyclomatic complexity from ~8 to ~3."
+    },
+    {
+      "id": "QUA-004",
+      "label": "QUA-004\nSRP Violation — `create_us…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`create_user` is responsible for (1) hashing the password, (2) building a raw SQL string, and (3) managing a database connection and transaction — three distinct concerns in one function. This makes unit-testing the hashing step impossible without a live database.",
+      "fix": "Extract password hashing into a dedicated `hash_password(password)` helper. Separate connection management into a context manager or a dedicated repository class, leaving `create_user` to orchestrate only high-level steps."
+    },
+    {
+      "id": "QUA-005",
+      "label": "QUA-005\nSRP Violation — `api.py` d…",
+      "type": "finding",
+      "severity": "high",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "The `/debug` endpoint hard-codes the same credential strings (`\"s3cr3tP@ssw0rd123\"`, `\"sk-prod-abc123XYZ789hardcoded\"`) that are already declared as module-level constants in `user_service.py`, introducing a second source-of-truth that can drift. The route also has no authentication guard, meaning any caller receives plaintext secrets.",
+      "fix": "Remove the `/debug` endpoint entirely for production builds. If a debug route is genuinely needed, gate it behind an `app.debug` flag, import the constants from the source module rather than re-typing them, and return only non-sensitive diagnostic information."
+    },
+    {
+      "id": "QUA-006",
+      "label": "QUA-006\nMagic Numbers — discount m…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/order_service.py",
+      "details": "The multipliers `0.90`, `0.80`, and `0.50` appear inline with no named constant or comment explaining that they represent \"10 % off\", \"20 % off\", and \"50 % off\" respectively. A future maintainer changing `SAVE10` to give 15 % off would need to know that `0.90` = 1 − 0.10.",
+      "fix": "Replace each literal with a named constant or compute it as `1 - discount_rate`. For example: `DISCOUNT_RATES = {\"SAVE10\": 0.10, \"SAVE20\": 0.20, \"HALFOFF\": 0.50}` and apply as `order[\"total\"] *= (1 - DISCOUNT_RATES[discount_code])`."
+    },
+    {
+      "id": "QUA-007",
+      "label": "QUA-007\nMagic Numbers — order-quan…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/order_service.py",
+      "details": "The threshold values `100` and `50` (bulk quantity tiers) and the multipliers `0.9` / `0.95` are bare literals with no symbolic name. Combined with the duplication noted in QUA-002, these numbers appear four times in the file.",
+      "fix": "Define module-level constants such as `BULK_TIER_LARGE = 100`, `BULK_TIER_MEDIUM = 50`, `DISCOUNT_LARGE = 0.90`, `DISCOUNT_MEDIUM = 0.95` and reference them consistently."
+    },
+    {
+      "id": "QUA-008",
+      "label": "QUA-008\nDead Code — `get_order_his…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/order_service.py",
+      "details": "`get_order_history` contains only `pass`, meaning it silently returns `None` on every call. Any caller that treats the return value as a list will receive a `TypeError` at runtime with no indication of why. There is no `TODO`, `raise NotImplementedError`, or similar marker.",
+      "fix": "Replace `pass` with `raise NotImplementedError(\"get_order_history is not yet implemented\")` so failures are explicit. Add a tracking ticket reference if work is planned."
+    },
+    {
+      "id": "QUA-009",
+      "label": "QUA-009\nMissing Error Handling — `…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/order_service.py",
+      "details": "Both functions access `order_data[\"item\"]`, `order_data[\"qty\"]`, and `order_data[\"price\"]` without any guard. A missing key raises an unhandled `KeyError` that propagates to the caller with no informative message.",
+      "fix": "Use `order_data.get(key)` with an explicit check, or validate with a schema library (e.g. `pydantic` or `marshmallow`) at the API boundary before the data reaches service functions."
+    },
+    {
+      "id": "QUA-010",
+      "label": "QUA-010\nMissing Error Handling — `…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "`data[\"username\"]`, `data[\"password\"]`, and `data[\"email\"]` will raise `KeyError` or `TypeError` if the client sends incomplete JSON or a non-object body. There is no `try/except`, no schema validation, and no HTTP 400 response path.",
+      "fix": "Call `data.get(key)` for each field and return a `400 Bad Request` with a descriptive message if any required field is absent. Centralise validation using a Flask request schema decorator or a `marshmallow` schema."
+    },
+    {
+      "id": "QUA-011",
+      "label": "QUA-011\nInconsistent Naming — mix …",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`get_user` accepts a `username` string, `update_user_email` and `delete_user` accept a numeric `user_id`, and the API layer calls `get_user(username)` but never exposes update/delete. The project has no consistent primary-key convention — some paths use the natural key, others use the surrogate key, with no adapter layer.",
+      "fix": "Establish a single convention (prefer surrogate `user_id` for internal service calls, resolve `username → id` at the API boundary) and rename parameters consistently across all three files."
+    },
+    {
+      "id": "QUA-012",
+      "label": "QUA-012\nInconsistent Patterns — DB…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "Every database function independently calls `get_db_connection()`, creates a cursor, and calls `conn.close()` in the happy path — but none of them use a `try/finally` or context manager. If an exception is raised between `get_db_connection()` and `conn.close()`, the connection leaks. `delete_user` (line 65) is the only function that uses a parameterised query.",
+      "fix": "Replace the manual open/close pattern with a `with get_db_connection() as conn:` context manager (or a `contextlib.closing` wrapper), ensuring connections are always released even on exception."
+    },
+    {
+      "id": "QUA-013",
+      "label": "QUA-013\nMagic Number — hardcoded p…",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/api.py",
+      "details": "The port number `5000` is a bare literal. In environments where the port is already in use, the only fix is to change the source file.",
+      "fix": "Read the port from an environment variable: `port = int(os.environ.get(\"PORT\", 5000))` and pass it to `app.run`."
+    },
+    {
+      "id": "QUA-014",
+      "label": "QUA-014\nDead / Unused Import — `os…",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`import os` is present at the top of the file but `os` is never referenced anywhere in the module. This adds noise and can confuse readers into thinking `os` is used for something (e.g. environment variable access for the hard-coded secrets).",
+      "fix": "Remove the `import os` line. If environment-variable-based secrets are introduced later, re-add it at that point."
+    },
+    {
+      "id": "QUA-015",
+      "label": "QUA-015\nInconsistent Return Style …",
+      "type": "finding",
+      "severity": "low",
+      "status": "flagged",
+      "file": "src/user_service.py",
+      "details": "`authenticate_user` returns a boolean, but `get_user` returns a raw database row tuple (or `None`). The API layer checks `if user:` on the tuple (line 24 of `api.py`), which relies on Python's truthiness of non-empty tuples. This inconsistency — sometimes a boolean, sometimes a truthy row — makes the contract of each function non-obvious.",
+      "fix": "Define a `User` dataclass or typed dict and return it (or `None`) from `get_user`, making the type contract explicit. Update `authenticate_user` to accept and return consistent types. Document return types with type annotations throughout."
+    },
+    {
+      "id": "TST-001",
+      "label": "TST-001\nprocess_order",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "No tests for basic path, qty discount thresholds, or missing keys",
+      "fix": "Add unit tests for `process_order` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-002",
+      "label": "TST-002\nprocess_bulk_order",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Duplicate of `process_order`; no tests existed",
+      "fix": "Add unit tests for `process_bulk_order` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-003",
+      "label": "TST-003\napply_discount",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "No tests for any discount code (SAVE10, SAVE20, HALFOFF) or unknown code",
+      "fix": "Add unit tests for `apply_discount` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-004",
+      "label": "TST-004\ncancel_order",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `cancel_order` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-005",
+      "label": "TST-005\nget_order_history",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Stub (returns `None`); not tested",
+      "fix": "Add unit tests for `get_order_history` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-006",
+      "label": "TST-006\nserialize_order",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `serialize_order` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-007",
+      "label": "TST-007\ndeserialize_order",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `deserialize_order` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-008",
+      "label": "TST-008\nget_user",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests; requires mocked DB",
+      "fix": "Add unit tests for `get_user` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-009",
+      "label": "TST-009\nauthenticate_user",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests; depends on `get_user",
+      "fix": "Add unit tests for `authenticate_user` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-010",
+      "label": "TST-010\ncalculate_user_score",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests for any activity_count branch",
+      "fix": "Add unit tests for `calculate_user_score` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-011",
+      "label": "TST-011\ncalculate_admin_score",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Duplicate of `calculate_user_score`; no tests",
+      "fix": "Add unit tests for `calculate_admin_score` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-012",
+      "label": "TST-012\ncreate_user",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests; requires mocked DB",
+      "fix": "Add unit tests for `create_user` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-013",
+      "label": "TST-013\nupdate_user_email",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests; requires mocked DB",
+      "fix": "Add unit tests for `update_user_email` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-014",
+      "label": "TST-014\ndelete_user",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests; requires mocked DB",
+      "fix": "Add unit tests for `delete_user` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-015",
+      "label": "TST-015\nget_all_users",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests; requires mocked DB",
+      "fix": "Add unit tests for `get_all_users` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-016",
+      "label": "TST-016\nrun_report",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests; command injection risk",
+      "fix": "Add unit tests for `run_report` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-017",
+      "label": "TST-017\nload_user_preferences",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "No tests; unsafe deserialization risk",
+      "fix": "Add unit tests for `load_user_preferences` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-018",
+      "label": "TST-018\nlogin` (Flask route)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `login` (Flask route)` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-019",
+      "label": "TST-019\nget_user_api` (Flask route)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `get_user_api` (Flask route)` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-020",
+      "label": "TST-020\ncreate_user_api` (Flask ro…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `create_user_api` (Flask route)` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-021",
+      "label": "TST-021\nplace_order` (Flask route)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `place_order` (Flask route)` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-022",
+      "label": "TST-022\ncancel_order_api` (Flask r…",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `cancel_order_api` (Flask route)` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "TST-023",
+      "label": "TST-023\ndebug_info` (Flask route)",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "sample_app/tests/test_services.py",
+      "details": "No tests",
+      "fix": "Add unit tests for `debug_info` (Flask route)` (see sample_app/tests/test_services.py)."
+    },
+    {
+      "id": "DOC-001",
+      "label": "DOC-001\nget_db_connection",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `get_db_connection` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `get_db_connection`."
+    },
+    {
+      "id": "DOC-002",
+      "label": "DOC-002\nget_user",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `get_user` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `get_user`."
+    },
+    {
+      "id": "DOC-003",
+      "label": "DOC-003\nauthenticate_user",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `authenticate_user` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `authenticate_user`."
+    },
+    {
+      "id": "DOC-004",
+      "label": "DOC-004\nrun_report",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `run_report` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `run_report`."
+    },
+    {
+      "id": "DOC-005",
+      "label": "DOC-005\nload_user_preferences",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `load_user_preferences` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `load_user_preferences`."
+    },
+    {
+      "id": "DOC-006",
+      "label": "DOC-006\ncreate_user",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `create_user` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `create_user`."
+    },
+    {
+      "id": "DOC-007",
+      "label": "DOC-007\nupdate_user_email",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `update_user_email` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `update_user_email`."
+    },
+    {
+      "id": "DOC-008",
+      "label": "DOC-008\ndelete_user",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `delete_user` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `delete_user`."
+    },
+    {
+      "id": "DOC-009",
+      "label": "DOC-009\nget_all_users",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `get_all_users` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `get_all_users`."
+    },
+    {
+      "id": "DOC-010",
+      "label": "DOC-010\ncalculate_user_score",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `calculate_user_score` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `calculate_user_score`."
+    },
+    {
+      "id": "DOC-011",
+      "label": "DOC-011\ncalculate_admin_score",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "user_service.py",
+      "details": "Missing docstring on `calculate_admin_score` in user_service.py.",
+      "fix": "Apply Google-style docstring from user_service_documented.py to `calculate_admin_score`."
+    },
+    {
+      "id": "DOC-012",
+      "label": "DOC-012\nprocess_order",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Missing docstring on `process_order` in order_service.py.",
+      "fix": "Apply Google-style docstring from order_service_documented.py to `process_order`."
+    },
+    {
+      "id": "DOC-013",
+      "label": "DOC-013\nprocess_bulk_order",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Missing docstring on `process_bulk_order` in order_service.py.",
+      "fix": "Apply Google-style docstring from order_service_documented.py to `process_bulk_order`."
+    },
+    {
+      "id": "DOC-014",
+      "label": "DOC-014\ncancel_order",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Missing docstring on `cancel_order` in order_service.py.",
+      "fix": "Apply Google-style docstring from order_service_documented.py to `cancel_order`."
+    },
+    {
+      "id": "DOC-015",
+      "label": "DOC-015\nget_order_history",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Missing docstring on `get_order_history` in order_service.py.",
+      "fix": "Apply Google-style docstring from order_service_documented.py to `get_order_history`."
+    },
+    {
+      "id": "DOC-016",
+      "label": "DOC-016\napply_discount",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Missing docstring on `apply_discount` in order_service.py.",
+      "fix": "Apply Google-style docstring from order_service_documented.py to `apply_discount`."
+    },
+    {
+      "id": "DOC-017",
+      "label": "DOC-017\nserialize_order",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Missing docstring on `serialize_order` in order_service.py.",
+      "fix": "Apply Google-style docstring from order_service_documented.py to `serialize_order`."
+    },
+    {
+      "id": "DOC-018",
+      "label": "DOC-018\ndeserialize_order",
+      "type": "finding",
+      "severity": "medium",
+      "status": "in_progress",
+      "file": "order_service.py",
+      "details": "Missing docstring on `deserialize_order` in order_service.py.",
+      "fix": "Apply Google-style docstring from order_service_documented.py to `deserialize_order`."
+    },
+    {
+      "id": "DOC-019",
+      "label": "DOC-019\nlogin",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "Missing docstring on `login` in api.py.",
+      "fix": "Apply Google-style docstring from api_documented.py to `login`."
+    },
+    {
+      "id": "DOC-020",
+      "label": "DOC-020\nget_user_api",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "Missing docstring on `get_user_api` in api.py.",
+      "fix": "Apply Google-style docstring from api_documented.py to `get_user_api`."
+    },
+    {
+      "id": "DOC-021",
+      "label": "DOC-021\ncreate_user_api",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "Missing docstring on `create_user_api` in api.py.",
+      "fix": "Apply Google-style docstring from api_documented.py to `create_user_api`."
+    },
+    {
+      "id": "DOC-022",
+      "label": "DOC-022\nplace_order",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "Missing docstring on `place_order` in api.py.",
+      "fix": "Apply Google-style docstring from api_documented.py to `place_order`."
+    },
+    {
+      "id": "DOC-023",
+      "label": "DOC-023\ncancel_order_api",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "Missing docstring on `cancel_order_api` in api.py.",
+      "fix": "Apply Google-style docstring from api_documented.py to `cancel_order_api`."
+    },
+    {
+      "id": "DOC-024",
+      "label": "DOC-024\ndebug_info",
+      "type": "finding",
+      "severity": "high",
+      "status": "in_progress",
+      "file": "api.py",
+      "details": "Missing docstring on `debug_info` in api.py.",
+      "fix": "Apply Google-style docstring from api_documented.py to `debug_info`."
+    }
+  ],
+  "edges": [
+    {
+      "from": "root",
+      "to": "branch_security"
+    },
+    {
+      "from": "root",
+      "to": "branch_quality"
+    },
+    {
+      "from": "root",
+      "to": "branch_tests"
+    },
+    {
+      "from": "root",
+      "to": "branch_docs"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-001"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-002"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-003"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-004"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-005"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-006"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-007"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-008"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-009"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-010"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-011"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-012"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-013"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-014"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-015"
+    },
+    {
+      "from": "branch_security",
+      "to": "SEC-016"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-001"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-002"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-003"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-004"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-005"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-006"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-007"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-008"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-009"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-010"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-011"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-012"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-013"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-014"
+    },
+    {
+      "from": "branch_quality",
+      "to": "QUA-015"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-001"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-002"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-003"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-004"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-005"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-006"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-007"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-008"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-009"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-010"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-011"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-012"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-013"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-014"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-015"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-016"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-017"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-018"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-019"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-020"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-021"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-022"
+    },
+    {
+      "from": "branch_tests",
+      "to": "TST-023"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-001"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-002"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-003"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-004"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-005"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-006"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-007"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-008"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-009"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-010"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-011"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-012"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-013"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-014"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-015"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-016"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-017"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-018"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-019"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-020"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-021"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-022"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-023"
+    },
+    {
+      "from": "branch_docs",
+      "to": "DOC-024"
+    }
+  ]
+};
+
 async function loadState() {
-  // Try fetching ../review_state.json (relative to visualizer/)
+    // Use inline embedded state first — works with file:// (no server needed)
+  if (typeof INLINE_STATE !== 'undefined' && INLINE_STATE && INLINE_STATE.nodes) {
+    buildGraph(INLINE_STATE);
+    return;
+  }
+
+    // Try fetching ../review_state.json (relative to visualizer/)
   const candidates = [
     '../review_state.json',
     'review_state.json',
@@ -607,17 +1806,25 @@ async function loadState() {
     }
   }
 
-  // Fallback: show a helpful error
+  // Fallback: show a helpful error with file-picker option
   document.getElementById('loading').innerHTML = `
-    <div style="text-align:center; max-width:420px; padding:0 20px">
-      <div style="font-size:28px;margin-bottom:12px">📂</div>
-      <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:8px">Could not load review_state.json</div>
-      <div style="font-size:13px;color:#64748b;line-height:1.7">
-        Open this file via a local server so fetch() can read the JSON:<br><br>
-        <code style="background:#1e293b;padding:6px 12px;border-radius:4px;font-size:12px;color:#7dd3fc">
-          cd ibm-bob-review-coach &amp;&amp; python -m http.server 8080
-        </code><br><br>
-        Then visit <a href="http://localhost:8080/visualizer/" style="color:#3b82f6">http://localhost:8080/visualizer/</a>
+    <div style="text-align:center; max-width:460px; padding:0 20px">
+      <div style="font-size:28px;margin-bottom:12px">🔌</div>
+      <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:8px">Inline state not found</div>
+      <div style="font-size:13px;color:#64748b;line-height:1.9">
+        <b style="color:#94a3b8">Option 1 — File picker (easiest):</b><br>
+        Click <b style="color:#f1f5f9">📂 Load JSON</b> in the toolbar and select <code style="background:#1e293b;padding:2px 6px;border-radius:3px;color:#7dd3fc;font-size:11px">review_state.json</code> from the repo root.<br><br>
+        <b style="color:#94a3b8">Option 2 — Re-inject inline state:</b><br>
+        <code style="background:#1e293b;padding:6px 12px;border-radius:4px;font-size:11px;color:#7dd3fc;display:inline-block;text-align:left">
+          python scripts/update_state.py<br>
+          python scripts/_inject_state.py
+        </code><br>
+        Then reload this page.<br><br>
+        <b style="color:#94a3b8">Option 3 — Local server:</b><br>
+        <code style="background:#1e293b;padding:6px 12px;border-radius:4px;font-size:11px;color:#7dd3fc;display:inline-block">
+          python -m http.server 8080 --bind 127.0.0.1
+        </code><br>
+        Visit <a href="http://127.0.0.1:8080/visualizer/" style="color:#3b82f6">http://127.0.0.1:8080/visualizer/</a>
       </div>
     </div>`;
 }

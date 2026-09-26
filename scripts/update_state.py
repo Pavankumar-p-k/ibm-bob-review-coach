@@ -391,6 +391,19 @@ def main():
     print(f"  Status : {m['open']} flagged / {m['in_progress']} in_progress / {m['resolved']} resolved")
     print(f"  Updated: {m['last_updated']}")
 
+    # Auto-inject into visualizer/index.html so it works without a server
+    inject_script = Path(__file__).resolve().parent / "_inject_state.py"
+    if inject_script.exists():
+        import subprocess as _sp
+        print(f"\nInjecting state into visualizer/index.html…")
+        result = _sp.run([sys.executable, str(inject_script)], capture_output=True, text=True)
+        if result.returncode == 0:
+            print(f"  {result.stdout.strip()}")
+        else:
+            print(f"  WARNING: inject failed: {result.stderr.strip()}")
+    else:
+        print(f"\nTip: run  python scripts/_inject_state.py  to embed state into visualizer/index.html")
+
 
 if __name__ == "__main__":
     main()
